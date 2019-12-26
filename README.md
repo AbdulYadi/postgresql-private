@@ -64,7 +64,7 @@ SELECT * FROM public.test;
   1 | abc
   2 | def
 ~~~
-But, to allow replication agents such as Slony or Bucardo which set session_replication_role to 'replica' prior table modifications, such restrictions should be relaxed:
+But, to allow replication agents such as Slony or Bucardo which set session_replication_role to 'replica' prior to table modifications, such restrictions should be relaxed:
 ~~~
 SET session_replication_role TO 'replica';
 INSERT INTO public.test VALUES (3, 'ghi');
