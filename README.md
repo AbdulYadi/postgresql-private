@@ -5,15 +5,17 @@ The more efficient approach is by implementing validation in user defined functi
 
 But, if you are the function programmer or superuser, the biggest enemy is yourself. You can easily bypass the function, modify table directly and break validation rule you have set.
 
-I have written additional functionality in PostgreSQL version 12.1 version to prevent regular user and even superuser from modifying directly table created with "private_modify" option. He or she should call SQL or PLPGSQL function to do that.
+I have written additional functionality in PostgreSQL version 12.1 version backend to prevent regular user and even superuser from modifying directly table created with "private_modify" option. He or she should call SQL or PLPGSQL function to do that.
 ~~~
 CREATE TABLE public.test (id integer NOT NULL, label text NOT NULL) WITH(private_modify=true);
 ~~~
-Insert into public.test directly and you will have error message:
+Insert into public.test directly and you will have error message.
 ~~~
-CREATE TABLE public.test (id integer NOT NULL, label text NOT NULL) WITH(private_modify=true);
+INSERT INTO public.test VALUES (1, 'abc');
 ERROR:  do not modify table with "private modify" option outside SQL or PLPGSQL function
 ~~~
+Update or delete will have the same error message.
+
 So let us create function in SQL language and PLPGSQL language:
 ~~~
 CREATE OR REPLACE FUNCTION public.testinsert_sql(i_id integer, t_label text)
