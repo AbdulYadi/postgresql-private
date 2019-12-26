@@ -1,0 +1,224 @@
+Only in .: pgsqlprivate.patch
+diff -ur ../postgresql-12.1/src/backend/access/common/reloptions.c ./src/backend/access/common/reloptions.c
+--- ../postgresql-12.1/src/backend/access/common/reloptions.c	2019-11-12 05:03:10.000000000 +0700
++++ ./src/backend/access/common/reloptions.c	2019-12-26 17:25:55.057508314 +0700
+@@ -158,6 +158,19 @@
+ 		},
+ 		true
+ 	},
++
++/*ABDUL:BEGIN*/
++    {
++        {
++            "private_modify",
++            "Tuples can only be inserted, updated or deleted from within function",
++            RELOPT_KIND_HEAP,
++            ShareUpdateExclusiveLock
++        },
++        false
++    },
++/*ABDUL:END*/
++
+ 	/* list terminator */
+ 	{{NULL}}
+ };
+@@ -1420,6 +1433,10 @@
+ 		offsetof(StdRdOptions, vacuum_index_cleanup)},
+ 		{"vacuum_truncate", RELOPT_TYPE_BOOL,
+ 		offsetof(StdRdOptions, vacuum_truncate)}
++/*ABDUL:BEGIN*/
++        ,{"private_modify", RELOPT_TYPE_BOOL,
++        offsetof(StdRdOptions, private_modify)}
++/*ABDUL:END*/
+ 	};
+ 
+ 	options = parseRelOptions(reloptions, validate, kind, &numoptions);
+diff -ur ../postgresql-12.1/src/backend/executor/functions.c ./src/backend/executor/functions.c
+--- ../postgresql-12.1/src/backend/executor/functions.c	2019-11-12 05:03:10.000000000 +0700
++++ ./src/backend/executor/functions.c	2019-12-26 17:23:32.992675165 +0700
+@@ -790,6 +790,11 @@
+ 
+ 	/* Caller should have ensured a suitable snapshot is active */
+ 	Assert(ActiveSnapshotSet());
++/*ABDUL:BEGIN*/
++    if( GetActiveSnapshot()->insideFunction == SNAPSHOTFUNCTION_NONE ) {
++        GetActiveSnapshot()->insideFunction = SNAPSHOTFUNCTION_SQL;
++    }
++/*ABDUL:END*/
+ 
+ 	/*
+ 	 * If this query produces the function result, send its output to the
+diff -ur ../postgresql-12.1/src/backend/executor/nodeModifyTable.c ./src/backend/executor/nodeModifyTable.c
+--- ../postgresql-12.1/src/backend/executor/nodeModifyTable.c	2019-11-12 05:03:10.000000000 +0700
++++ ./src/backend/executor/nodeModifyTable.c	2019-12-26 17:17:37.551095956 +0700
+@@ -56,7 +56,9 @@
+ #include "utils/datum.h"
+ #include "utils/memutils.h"
+ #include "utils/rel.h"
+-
++/*ABDUL:BEGIN*/
++#include "utils/snapmgr.h"
++/*ABDUL:END*/
+ 
+ static bool ExecOnConflictUpdate(ModifyTableState *mtstate,
+ 								 ResultRelInfo *resultRelInfo,
+@@ -2275,6 +2277,11 @@
+ 	int			i;
+ 	Relation	rel;
+ 	bool		update_tuple_routing_needed = node->partColsUpdated;
++/*ABDUL:BEGIN*/
++    char       *replicaRole;
++    SnapshotFunctionType snapshotFunctionType = SNAPSHOTFUNCTION_NONE;
++    bool privateModify = false;
++/*ABDUL:END*/
+ 
+ 	/* check for unsupported flags */
+ 	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
+@@ -2389,6 +2396,22 @@
+ 	/* Get the target relation */
+ 	rel = (getTargetResultRelInfo(mtstate))->ri_RelationDesc;
+ 
++/*ABDUL:BEGIN*/
++    replicaRole = GetConfigOptionByName("session_replication_role", NULL, true);
++    if( replicaRole==NULL || strcasecmp("replica", replicaRole)!=0 ) {
++        if( rel->rd_options!=NULL )
++        {
++            privateModify = ((StdRdOptions *) rel->rd_options)->private_modify;
++        }
++        if( privateModify ) {
++            snapshotFunctionType = ActiveSnapshotSet() ? GetActiveSnapshot()->insideFunction : SNAPSHOTFUNCTION_NONE;
++            if( snapshotFunctionType != SNAPSHOTFUNCTION_SQL && snapshotFunctionType != SNAPSHOTFUNCTION_PLPGSQL ) {
++                elog(ERROR, "do not modify table with \"private modify\" option outside SQL or PLPGSQL function");
++            }
++        }
++    }
++/*ABDUL:END*/
++
+ 	/*
+ 	 * If it's not a partitioned table after all, UPDATE tuple routing should
+ 	 * not be attempted.
+diff -ur ../postgresql-12.1/src/backend/executor/spi.c ./src/backend/executor/spi.c
+--- ../postgresql-12.1/src/backend/executor/spi.c	2019-11-12 05:03:10.000000000 +0700
++++ ./src/backend/executor/spi.c	2019-12-26 17:22:19.209724607 +0700
+@@ -2109,6 +2109,11 @@
+ 	ErrorContextCallback spierrcontext;
+ 	CachedPlan *cplan = NULL;
+ 	ListCell   *lc1;
++/*ABDUL:BEGIN*/
++    SnapshotFunctionType currentSnapshotFunctionType = SNAPSHOTFUNCTION_NONE;
++    Snapshot transactionSnapshot = NULL;
++    SnapshotFunctionType transactionSnapshotFunctionType = SNAPSHOTFUNCTION_NONE;
++/*ABDUL:END*/
+ 
+ 	/*
+ 	 * Setup error traceback support for ereport()
+@@ -2223,7 +2228,15 @@
+ 		{
+ 			if (pushed_active_snap)
+ 				PopActiveSnapshot();
++        /*ABDUL:BEGIN*/
++            currentSnapshotFunctionType = ActiveSnapshotSet() ? GetActiveSnapshot()->insideFunction : SNAPSHOTFUNCTION_NONE;
++        /*ABDUL:END*/
+ 			PushActiveSnapshot(GetTransactionSnapshot());
++        /*ABDUL:BEGIN*/
++            transactionSnapshot = GetActiveSnapshot();
++            transactionSnapshotFunctionType = transactionSnapshot->insideFunction;
++            transactionSnapshot->insideFunction = currentSnapshotFunctionType;
++        /*ABDUL:END*/
+ 			pushed_active_snap = true;
+ 		}
+ 
+@@ -2405,6 +2418,11 @@
+ 	}
+ 
+ fail:
++/*ABDUL:BEGIN*/
++    if (pushed_active_snap && transactionSnapshot!=NULL) {
++        transactionSnapshot->insideFunction = transactionSnapshotFunctionType;
++    }
++/*ABDUL:END*/
+ 
+ 	/* Pop the snapshot off the stack if we pushed one */
+ 	if (pushed_active_snap)
+@@ -2516,6 +2534,12 @@
+ 	else
+ 		eflags = EXEC_FLAG_SKIP_TRIGGERS;
+ 
++/*ABDUL:BEGIN*/
++    if( ActiveSnapshotSet() && GetActiveSnapshot()->insideFunction == SNAPSHOTFUNCTION_NONE ) {
++        GetActiveSnapshot()->insideFunction = SNAPSHOTFUNCTION_PLPGSQL;
++    }
++/*ABDUL:END*/
++
+ 	ExecutorStart(queryDesc, eflags);
+ 
+ 	ExecutorRun(queryDesc, ForwardScanDirection, tcount, true);
+diff -ur ../postgresql-12.1/src/include/utils/rel.h ./src/include/utils/rel.h
+--- ../postgresql-12.1/src/include/utils/rel.h	2019-11-12 05:03:10.000000000 +0700
++++ ./src/include/utils/rel.h	2019-12-26 17:13:17.044739811 +0700
+@@ -273,6 +273,9 @@
+ 	int			parallel_workers;	/* max number of parallel workers */
+ 	bool		vacuum_index_cleanup;	/* enables index vacuuming and cleanup */
+ 	bool		vacuum_truncate;	/* enables vacuum to truncate a relation */
++/*ABDUL:BEGIN*/
++    bool        private_modify; /*tuples can only be inserted, updated, deleted from within function*/
++/*ABDUL:END*/
+ } StdRdOptions;
+ 
+ #define HEAP_MIN_FILLFACTOR			10
+diff -ur ../postgresql-12.1/src/include/utils/snapshot.h ./src/include/utils/snapshot.h
+--- ../postgresql-12.1/src/include/utils/snapshot.h	2019-11-12 05:03:10.000000000 +0700
++++ ./src/include/utils/snapshot.h	2019-12-26 17:14:56.206017321 +0700
+@@ -118,6 +118,15 @@
+ 	SNAPSHOT_NON_VACUUMABLE
+ } SnapshotType;
+ 
++/*ABDUL:BEGIN*/
++typedef enum SnapshotFunctionType {
++    SNAPSHOTFUNCTION_NONE = 0,
++    SNAPSHOTFUNCTION_SQL = 1,
++    SNAPSHOTFUNCTION_PLPGSQL = 2,
++    SNAPSHOTFUNCTION_ANONYMOUS_PLPGSQL = 3
++} SnapshotFunctionType;
++/*ABDUL:END*/
++
+ typedef struct SnapshotData *Snapshot;
+ 
+ #define InvalidSnapshot		((Snapshot) NULL)
+@@ -201,6 +210,10 @@
+ 
+ 	TimestampTz whenTaken;		/* timestamp when snapshot was taken */
+ 	XLogRecPtr	lsn;			/* position in the WAL stream when taken */
++
++/*ABDUL:BEGIN*/
++    SnapshotFunctionType    insideFunction; /*SnapshotFunctionType*/
++/*ABDUL:END*/
+ } SnapshotData;
+ 
+ #endif							/* SNAPSHOT_H */
+diff -ur ../postgresql-12.1/src/pl/plpgsql/src/pl_handler.c ./src/pl/plpgsql/src/pl_handler.c
+--- ../postgresql-12.1/src/pl/plpgsql/src/pl_handler.c	2019-11-12 05:03:10.000000000 +0700
++++ ./src/pl/plpgsql/src/pl_handler.c	2019-12-26 17:27:40.750878921 +0700
+@@ -28,6 +28,9 @@
+ 
+ #include "plpgsql.h"
+ 
++/*ABDUL:BEGIN*/
++#include "utils/snapmgr.h"
++/*ABDUL:END*/
+ 
+ static bool plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source);
+ static void plpgsql_extra_warnings_assign_hook(const char *newvalue, void *extra);
+@@ -333,6 +336,12 @@
+ 	/* Create a private EState for simple-expression execution */
+ 	simple_eval_estate = CreateExecutorState();
+ 
++/*ABDUL:BEGIN*/
++    if( ActiveSnapshotSet() && GetActiveSnapshot()->insideFunction == SNAPSHOTFUNCTION_NONE ) {
++        GetActiveSnapshot()->insideFunction = SNAPSHOTFUNCTION_ANONYMOUS_PLPGSQL;
++    }
++/*ABDUL:END*/
++
+ 	/* And run the function */
+ 	PG_TRY();
+ 	{
