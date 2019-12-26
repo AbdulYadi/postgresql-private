@@ -72,7 +72,8 @@ INSERT INTO public.test VALUES (3, 'ghi');
 ## How to apply patch and build PostgreSQL
 1. Clone or download patch coming from https://github.com/AbdulYadi/postgresql-private. Extract as necessary.
 2. Download PostgreSQL version 12.1 from https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.bz2 or https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.gz. Extract to your preferred directory.
-3. Apply patch: change directory to the extracted PostgreSQL source code root and run patch -p0 < path-to-downloaded-patch-file
+3. Apply patch: change directory to the extracted PostgreSQL source code root and run patch -p0 < path-to-downloaded-patch-file.
+4. Build as instructed in PostgreSQL's INSTALL file.
 ## Warning
 This patch is still an experiment so do not put into production server.
 
