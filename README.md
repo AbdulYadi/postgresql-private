@@ -9,6 +9,17 @@ I have written additional functionality in PostgreSQL version 12.1 version backe
 ~~~
 CREATE TABLE public.test (id integer NOT NULL, label text NOT NULL) WITH(private_modify=true);
 ~~~
+Check table options in system table:
+~~~
+select n.nspname, relname, reloptions
+from pg_class c 
+inner join pg_namespace n on n.oid = c.relnamespace
+where c.relname='test' and n.nspname='public';
+
+ nspname | relname |      reloptions
+---------+---------+-----------------------
+ public  | test    | {private_modify=true}
+~~~
 Insert into public.test directly and you will have error message.
 ~~~
 INSERT INTO public.test VALUES (1, 'abc');
