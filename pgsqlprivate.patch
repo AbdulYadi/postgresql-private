@@ -50,7 +50,7 @@ diff -ur ../postgresql-12.1/src/backend/executor/functions.c ./src/backend/execu
  	 * If this query produces the function result, send its output to the
 diff -ur ../postgresql-12.1/src/backend/executor/nodeModifyTable.c ./src/backend/executor/nodeModifyTable.c
 --- ../postgresql-12.1/src/backend/executor/nodeModifyTable.c	2019-11-12 05:03:10.000000000 +0700
-+++ ./src/backend/executor/nodeModifyTable.c	2019-12-26 17:17:37.551095956 +0700
++++ ./src/backend/executor/nodeModifyTable.c	2019-12-26 20:25:09.266371443 +0700
 @@ -56,7 +56,9 @@
  #include "utils/datum.h"
  #include "utils/memutils.h"
@@ -87,8 +87,8 @@ diff -ur ../postgresql-12.1/src/backend/executor/nodeModifyTable.c ./src/backend
 +        }
 +        if( privateModify ) {
 +            snapshotFunctionType = ActiveSnapshotSet() ? GetActiveSnapshot()->insideFunction : SNAPSHOTFUNCTION_NONE;
-+            if( snapshotFunctionType != SNAPSHOTFUNCTION_SQL && snapshotFunctionType != SNAPSHOTFUNCTION_PLPGSQL ) {
-+                elog(ERROR, "do not modify table with \"private modify\" option outside SQL or PLPGSQL function");
++            if( snapshotFunctionType != SNAPSHOTFUNCTION_SQL && snapshotFunctionType != SNAPSHOTFUNCTION_SPI ) {
++                elog(ERROR, "do not modify table with \"private modify\" option outside SQL, PLPGSQL or other SPI-based function");
 +            }
 +        }
 +    }
@@ -99,7 +99,7 @@ diff -ur ../postgresql-12.1/src/backend/executor/nodeModifyTable.c ./src/backend
  	 * not be attempted.
 diff -ur ../postgresql-12.1/src/backend/executor/spi.c ./src/backend/executor/spi.c
 --- ../postgresql-12.1/src/backend/executor/spi.c	2019-11-12 05:03:10.000000000 +0700
-+++ ./src/backend/executor/spi.c	2019-12-26 17:22:19.209724607 +0700
++++ ./src/backend/executor/spi.c	2019-12-26 20:24:07.460944223 +0700
 @@ -2109,6 +2109,11 @@
  	ErrorContextCallback spierrcontext;
  	CachedPlan *cplan = NULL;
@@ -146,7 +146,7 @@ diff -ur ../postgresql-12.1/src/backend/executor/spi.c ./src/backend/executor/sp
  
 +/*ABDUL:BEGIN*/
 +    if( ActiveSnapshotSet() && GetActiveSnapshot()->insideFunction == SNAPSHOTFUNCTION_NONE ) {
-+        GetActiveSnapshot()->insideFunction = SNAPSHOTFUNCTION_PLPGSQL;
++        GetActiveSnapshot()->insideFunction = SNAPSHOTFUNCTION_SPI;
 +    }
 +/*ABDUL:END*/
 +
@@ -168,7 +168,7 @@ diff -ur ../postgresql-12.1/src/include/utils/rel.h ./src/include/utils/rel.h
  #define HEAP_MIN_FILLFACTOR			10
 diff -ur ../postgresql-12.1/src/include/utils/snapshot.h ./src/include/utils/snapshot.h
 --- ../postgresql-12.1/src/include/utils/snapshot.h	2019-11-12 05:03:10.000000000 +0700
-+++ ./src/include/utils/snapshot.h	2019-12-26 17:14:56.206017321 +0700
++++ ./src/include/utils/snapshot.h	2019-12-26 20:23:13.598881209 +0700
 @@ -118,6 +118,15 @@
  	SNAPSHOT_NON_VACUUMABLE
  } SnapshotType;
@@ -177,7 +177,7 @@ diff -ur ../postgresql-12.1/src/include/utils/snapshot.h ./src/include/utils/sna
 +typedef enum SnapshotFunctionType {
 +    SNAPSHOTFUNCTION_NONE = 0,
 +    SNAPSHOTFUNCTION_SQL = 1,
-+    SNAPSHOTFUNCTION_PLPGSQL = 2,
++    SNAPSHOTFUNCTION_SPI = 2,
 +    SNAPSHOTFUNCTION_ANONYMOUS_PLPGSQL = 3
 +} SnapshotFunctionType;
 +/*ABDUL:END*/
