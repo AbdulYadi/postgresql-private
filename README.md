@@ -38,6 +38,7 @@ So let us create function in SQL language and PLPGSQL language:
 CREATE OR REPLACE FUNCTION public.testinsert_sql(i_id integer, t_label text)
   RETURNS void AS
 $BODY$
+/*do necessary validation*/
 INSERT INTO public.test (id, "label") VALUES ($1, $2);
 $BODY$
   LANGUAGE sql VOLATILE SECURITY DEFINER;
@@ -46,6 +47,7 @@ CREATE OR REPLACE FUNCTION public.testinsert_plpgsql(i_id integer, t_label text)
   RETURNS void AS
 $BODY$
 BEGIN
+/*do necessary validation*/
 	INSERT INTO public.test (id, "label") VALUES ($1, $2);
 	RETURN;
 END;$BODY$
