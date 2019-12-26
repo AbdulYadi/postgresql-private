@@ -7,20 +7,26 @@ But, if you are the function programmer or superuser, the biggest enemy is yours
 
 I have written additional functionality in PostgreSQL version 12.1 version backend to prevent regular user and even superuser from modifying directly table created with "private_modify" option. He or she should call SQL or PLPGSQL function to do that.
 ~~~
+CREATE TABLE public.regular (id integer NOT NULL, label text NOT NULL);
 CREATE TABLE public.test (id integer NOT NULL, label text NOT NULL) WITH(private_modify=true);
 ~~~
 Check table options in system table:
 ~~~
-select n.nspname, relname, reloptions
-from pg_class c 
-inner join pg_namespace n on n.oid = c.relnamespace
-where c.relname='test' and n.nspname='public';
+SELECT n.nspname, relname, reloptions
+FROM pg_class c 
+INNER JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relname in('regular','test') AND n.nspname='public';
 
  nspname | relname |      reloptions
 ---------+---------+-----------------------
+ public  | regular | 
  public  | test    | {private_modify=true}
 ~~~
-Insert into public.test directly and you will have error message.
+Insert into public.regular directly and it works as usual.
+~~~
+INSERT INTO public.regular VALUES (1, 'abc');
+~~~
+Now, insert into public.test directly and you will have error message.
 ~~~
 INSERT INTO public.test VALUES (1, 'abc');
 ERROR:  do not modify table with "private modify" option outside SQL or PLPGSQL function
@@ -67,7 +73,8 @@ INSERT INTO public.test VALUES (3, 'ghi');
 1. Clone or download patch coming from this repository. Extract as necessary.
 2. Download PostgreSQL version 12.1 from https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.bz2 or https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.gz. Extract to your preferred directory.
 3. Apply patch: change directory to the extracted PostgreSQL source code root and run patch -p0 < path-to-patch-file
-
+## Warning
+This patch is still an experiment so do not put into production server.
 
 
 
