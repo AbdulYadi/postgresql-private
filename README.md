@@ -45,3 +45,11 @@ SELECT * FROM public.test;
   1 | abc
   2 | def
 ~~~
+But, to allow replication agents such as Slony or Bucardo which set session_replication_role to 'replica' prior table modifications, such restrictions should be relaxed:
+~~~
+SET session_replication_role TO 'replica';
+INSERT INTO public.test VALUES (3, 'ghi');
+~~~
+## How to apply patch and build PostgreSQL
+Download PostgreSQL version 12.1 from https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.bz2 or https://ftp.postgresql.org/pub/source/v12.1/postgresql-12.1.tar.gz.
+
