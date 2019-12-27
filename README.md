@@ -87,6 +87,53 @@ INSERT INTO public.test VALUES (3, 'ghi');
 4. Build as instructed in PostgreSQL's INSTALL file.
 ## Warning
 This patch is still an experiment so do not put into production server.
-
-
-
+## Example
+A zoo can only breed maximum of 5 elephants ('e') and 3 tigers ('t').
+~~~
+CREATE TABLE public.zoo
+(
+  id serial NOT NULL,
+  animal char NOT NULL,
+  "name" text NOT NULL,
+  CONSTRAINT zoo_pkey PRIMARY KEY (id),
+  CONSTRAINT animal_kind CHECK (animal IN ('e','t'))
+)
+WITH (private_modify=true);
+~~~
+Animal kind can be simply validated by CHECK constraint. Other then 'e' or 't' will be rejected. How about the maximum number contrained without additional book-keeping table. Option "private_modify" come to the rescue. Regular user and superuser can no longer directly INSERT into public.zoo table. Following user defined function is needed:
+~~~
+CREATE OR REPLACE FUNCTION public.zoo_insert(c_animal char, t_name text)
+  RETURNS void AS
+$BODY$
+DECLARE
+	_count integer;
+BEGIN
+	PERFORM * FROM public.zoo WHERE animal = c_animal FOR UPDATE;--prevent race condition
+	SELECT COUNT(*) INTO _count FROM public.zoo WHERE animal = c_animal;
+	IF c_animal = 'e' AND _count = 5 THEN
+		RAISE EXCEPTION '5 elephants maximum';
+	ELSIF c_animal = 't' AND _count = 3 THEN
+		RAISE EXCEPTION '3 tigers maximum';
+	END IF;	
+	INSERT INTO public.zoo (animal, "name") VALUES (c_animal, t_name);
+	RETURN;
+END;$BODY$
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.zoo_insert(char, text) TO public;
+~~~
+Run following command one row at a time to add elephant. Notice that "ERROR:  5 elephants maximum" error reported on sixth row:
+~~~
+SELECT public.zoo_insert('e', 'el-1');
+SELECT public.zoo_insert('e', 'el-2');
+SELECT public.zoo_insert('e', 'el-3');
+SELECT public.zoo_insert('e', 'el-4');
+SELECT public.zoo_insert('e', 'el-5');
+<p style='color:red'>SELECT public.zoo_insert('e', 'el-6');</p>
+~~~
+The same thig for tiger. Fourth row will fail with "ERROR:  3 tigers maximum" error:
+~~~
+select public.zoo_insert('t', 'ti-1');
+select public.zoo_insert('t', 'ti-2');
+select public.zoo_insert('t', 'ti-3');
+<p style='color:red'>select public.zoo_insert('t', 'ti-4');</p>
+~~~
