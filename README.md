@@ -29,7 +29,16 @@ INSERT INTO public.regular VALUES (1, 'abc');
 Now, insert into public.test directly and you will have error message.
 ~~~
 INSERT INTO public.test VALUES (1, 'abc');
-ERROR:  do not modify table with "private modify" option outside SQL or PLPGSQL function
+ERROR:  do not modify table with "private modify" option outside SQL, PLPGSQL or other SPI-based function
+~~~
+Anonymous block does not work too
+~~~
+DO $$
+DECLARE
+BEGIN
+	INSERT INTO public.test VALUES (1, 'abc');
+END$$;
+ERROR:  do not modify table with "private modify" option outside SQL, PLPGSQL or other SPI-based function
 ~~~
 Update or delete will have the same error message.
 
