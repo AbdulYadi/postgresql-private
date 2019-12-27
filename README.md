@@ -122,18 +122,18 @@ END;$BODY$
 GRANT EXECUTE ON FUNCTION public.zoo_insert(char, text) TO public;
 ~~~
 Run following command one row at a time to add elephant. Notice that "ERROR:  5 elephants maximum" error reported on sixth row:
-~~~html
+~~~diff
 SELECT public.zoo_insert('e', 'el-1');
 SELECT public.zoo_insert('e', 'el-2');
 SELECT public.zoo_insert('e', 'el-3');
 SELECT public.zoo_insert('e', 'el-4');
 SELECT public.zoo_insert('e', 'el-5');
-<p style='color:red'>SELECT public.zoo_insert('e', 'el-6');</p>
+- SELECT public.zoo_insert('e', 'el-6');
 ~~~
 The same thig for tiger. Fourth row will fail with "ERROR:  3 tigers maximum" error:
-~~~html
-select public.zoo_insert('t', 'ti-1');
-select public.zoo_insert('t', 'ti-2');
-select public.zoo_insert('t', 'ti-3');
-<p style='color:red'>select public.zoo_insert('t', 'ti-4');</p>
+~~~diff
+SELECT public.zoo_insert('t', 'ti-1');
+SELECT public.zoo_insert('t', 'ti-2');
+SELECT public.zoo_insert('t', 'ti-3');
+- SELECT public.zoo_insert('t', 'ti-4');
 ~~~
