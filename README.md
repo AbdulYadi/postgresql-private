@@ -100,7 +100,7 @@ CREATE TABLE public.zoo
 )
 WITH (private_modify=true);
 ~~~
-Animal kind can be simply validated by CHECK constraint. Other then 'e' or 't' will be rejected. How about the maximum number constrained without additional book-keeping table. Option "private_modify" come to the rescue. Regular user and superuser can no longer directly INSERT into public.zoo table. Following user defined function is needed:
+Animal kind can be simply validated by CHECK constraint. Other then 'e' or 't' will be rejected. How about the maximum number constrained without additional book-keeping table. Option "private_modify" come to the rescue. Regular user and superuser can no longer directly INSERT/UPDATE/DELETE to public.zoo table. Following user defined function is needed:
 ~~~
 CREATE OR REPLACE FUNCTION public.zoo_insert(c_animal char, t_name text)
   RETURNS void AS
