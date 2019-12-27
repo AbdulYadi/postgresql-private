@@ -110,9 +110,9 @@ DECLARE
 BEGIN
 	PERFORM * FROM public.zoo WHERE animal = c_animal FOR UPDATE;--prevent race condition
 	SELECT COUNT(*) INTO _count FROM public.zoo WHERE animal = c_animal;
-	IF c_animal = 'e' AND _count = 5 THEN
+	IF c_animal = 'e' AND _count >= 5 THEN
 		RAISE EXCEPTION '5 elephants maximum';
-	ELSIF c_animal = 't' AND _count = 3 THEN
+	ELSIF c_animal = 't' AND _count >= 3 THEN
 		RAISE EXCEPTION '3 tigers maximum';
 	END IF;	
 	INSERT INTO public.zoo (animal, "name") VALUES (c_animal, t_name);
@@ -128,12 +128,12 @@ SELECT public.zoo_insert('e', 'el-2');
 SELECT public.zoo_insert('e', 'el-3');
 SELECT public.zoo_insert('e', 'el-4');
 SELECT public.zoo_insert('e', 'el-5');
-SELECT public.zoo_insert('e', 'el-6');
+SELECT public.zoo_insert('e', 'el-6');/*failing row*/
 ~~~
 The same thig for tiger. Fourth row will fail with "ERROR:  3 tigers maximum":
 ~~~
 SELECT public.zoo_insert('t', 'ti-1');
 SELECT public.zoo_insert('t', 'ti-2');
 SELECT public.zoo_insert('t', 'ti-3');
-SELECT public.zoo_insert('t', 'ti-4');
+SELECT public.zoo_insert('t', 'ti-4');/*failing row*/
 ~~~
