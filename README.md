@@ -121,19 +121,19 @@ END;$BODY$
   LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION public.zoo_insert(char, text) TO public;
 ~~~
-Run following command one row at a time to add elephant. Notice that "ERROR:  5 elephants maximum" error reported on sixth row:
-~~~diff
+Run following command one row at a time to add elephant. Notice that "ERROR:  5 elephants maximum" reported on sixth row:
+~~~
 SELECT public.zoo_insert('e', 'el-1');
 SELECT public.zoo_insert('e', 'el-2');
 SELECT public.zoo_insert('e', 'el-3');
 SELECT public.zoo_insert('e', 'el-4');
 SELECT public.zoo_insert('e', 'el-5');
-- SELECT public.zoo_insert('e', 'el-6');
+SELECT public.zoo_insert('e', 'el-6');
 ~~~
-The same thig for tiger. Fourth row will fail with "ERROR:  3 tigers maximum" error:
-~~~diff
+The same thig for tiger. Fourth row will fail with "ERROR:  3 tigers maximum":
+~~~
 SELECT public.zoo_insert('t', 'ti-1');
 SELECT public.zoo_insert('t', 'ti-2');
 SELECT public.zoo_insert('t', 'ti-3');
-- SELECT public.zoo_insert('t', 'ti-4');
+SELECT public.zoo_insert('t', 'ti-4');
 ~~~
